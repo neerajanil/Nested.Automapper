@@ -8,10 +8,65 @@ using System.Threading.Tasks;
 
 namespace Nested.Automapper.ConsoleTest
 {
+    
     class Program
     {
         static void Main(string[] args)
         {
+            //List<Dictionary<string, object>> data = new List<Dictionary<string, object>>()
+            //{
+                
+            //    new Dictionary<string, object>()
+            //    {
+            //        {"C", "data"},
+            //        {"A.Data","data1"},
+            //        {"A.Data1",2},
+            //        {"B.Data","data3"},
+            //        {"B.Data1",4},
+            //        {"D.Data","data5"},
+            //        {"D.Data1",6}
+            //    },
+            //    new Dictionary<string, object>()
+            //    {
+            //        {"C", "data"},
+            //        {"A.Data","data1"},
+            //        {"A.Data1",2},
+            //        {"B.Data","data3"},
+            //        {"B.Data1",4},
+            //        {"D.Data","data7"},
+            //        {"D.Data1",8}
+            //    },
+            //    new Dictionary<string, object>()
+            //    {
+            //        {"C", "data"},
+            //        {"A.Data","data1"},
+            //        {"A.Data1",2},
+            //        {"B.Data","data9"},
+            //        {"B.Data1",10},
+            //        {"D.Data","data5"},
+            //        {"D.Data1",6}
+            //    },
+            //    new Dictionary<string, object>()
+            //    {
+            //        {"C", "data"},
+            //        {"A.Data","data1"},
+            //        {"A.Data1",2},
+            //        {"B.Data","data9"},
+            //        {"B.Data1",10},
+            //        {"D.Data","data7"},
+            //        {"D.Data1",8}
+            //    }
+            //};
+
+            //var z = typeof(TestType6).GetProperty("Data").PropertyType.GetGenericTypeDefinition();
+            //bool flag1 = z == typeof(Nullable<int>).GetGenericTypeDefinition();
+
+            Nullable<int> n = new Nullable<int>();
+            var flag = n.HasValue;
+            var constructors = typeof(Nullable<int>).GetMethods();
+            var zz = System.Convert.ChangeType(0, typeof(bool));
+            
+
             List<Dictionary<string, object>> data = new List<Dictionary<string, object>>()
             {
                 
@@ -23,7 +78,7 @@ namespace Nested.Automapper.ConsoleTest
                     {"B.Data","data3"},
                     {"B.Data1",4},
                     {"D.Data","data5"},
-                    {"D.Data1",6}
+                    {"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
@@ -43,7 +98,7 @@ namespace Nested.Automapper.ConsoleTest
                     {"B.Data","data9"},
                     {"B.Data1",10},
                     {"D.Data","data5"},
-                    {"D.Data1",6}
+                    {"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
@@ -56,6 +111,7 @@ namespace Nested.Automapper.ConsoleTest
                     {"D.Data1",8}
                 }
             };
+
 
             var s = typeof(string).Name;
             s = typeof(Guid).Name;
@@ -88,8 +144,11 @@ namespace Nested.Automapper.ConsoleTest
             //Console.WriteLine(del(314, 159));
 
 
-            var flag = typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType);
-            flag = t.PropertyType.IsAssignableFrom(typeof(IEnumerable<>));
+            //var flag = typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType);
+            //flag = t.PropertyType.IsAssignableFrom(typeof(IEnumerable<>));
+
+
+
             
         }
     }
@@ -140,6 +199,6 @@ namespace Nested.Automapper.ConsoleTest
         [Key]
         public string Data { get; set; }
 
-        public int Data1 { get; set; }
+        public Nullable<int> Data1 { get; set; }
     }
 }

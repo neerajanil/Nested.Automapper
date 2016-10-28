@@ -78,7 +78,7 @@ namespace Nested.Automapper
                     emiter.LoadArgument(1); //depthString
                     
                     Dictionary<string,Sigil.Label> isNullLabels = new Dictionary<string,Sigil.Label>(); //
-                    foreach (var property in keyProperties)
+                    foreach (var property in keyProperties.OrderBy(t => t.Name))
                     {
                         var label = emiter.DefineLabel("IsNull" + property.Name);
                         isNullLabels.Add(property.Name, label);
@@ -93,7 +93,7 @@ namespace Nested.Automapper
                     }
                     emiter.NewObject(constructor);
                     emiter.Return(); // return new Tuple<string,object,object,..>(depthString,data[],data[],..)
-                    foreach (var property in keyProperties)
+                    foreach (var property in keyProperties.OrderByDescending(t => t.Name))
                     {
                         emiter.MarkLabel(isNullLabels[property.Name]);
                         emiter.Pop();
@@ -173,23 +173,77 @@ namespace Nested.Automapper
                 emiter.LoadLocal(newObjectLocal);
                 emiter.CallVirtual(DictionaryAdd_Object_Object);
 
-                var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType.Name == "String" || t.PropertyType.Name == "Guid");
+                var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
                 foreach (var property in literalProperties)
                 {
+                    
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
                     emiter.Call(StringConcat2);
                     emiter.CallVirtual(DictionaryGet_String_Object);
+                    
+                    
+
                     if (property.PropertyType.IsValueType)
                         emiter.UnboxAny(property.PropertyType);
                     else
                         emiter.CastClass(property.PropertyType);
+
                     emiter.Call(property.SetMethod);
                 }
 
-                var nonliteralProperties = type.GetProperties().Where(t => !(t.PropertyType.IsPrimitive || t.PropertyType.Name == "String" || t.PropertyType.Name == "Guid"));
+                var nullableProperties = type.GetProperties().Where(t => t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>));
+                foreach (var property in nullableProperties)
+                {
+                    Type innerType = property.PropertyType.GenericTypeArguments[0];
+                    var nullableConstructor = property.PropertyType.GetConstructor(new Type[] { innerType });
+                    var nullableNullConstructor = property.PropertyType.GetConstructor(new Type[] { });
+                    var isNull = emiter.DefineLabel("IsNull" + property.Name);
+                    var isNotNull = emiter.DefineLabel("IsNotNull" + property.Name);
+
+                    var nullableLocal = emiter.DeclareLocal(property.PropertyType, "NullableLocal" + property.Name);
+                    emiter.LoadLocalAddress(nullableLocal);
+                    emiter.InitializeObject(property.PropertyType);
+
+                    
+                    emiter.LoadArgument(0);
+                    emiter.LoadArgument(2);
+                    emiter.LoadConstant(property.Name);
+                    emiter.Call(StringConcat2);
+                    emiter.CallVirtual(DictionaryGet_String_Object);
+                    emiter.Duplicate();
+                    emiter.LoadNull();
+                    emiter.BranchIfEqual(isNull);
+
+
+                    if (property.PropertyType.IsValueType)
+                        emiter.UnboxAny(innerType);
+                    else
+                        emiter.CastClass(innerType);
+                    emiter.NewObject(nullableConstructor);
+                    emiter.StoreLocal(nullableLocal);
+                    emiter.Branch(isNotNull);
+
+                    emiter.MarkLabel(isNull);
+                    emiter.Pop();
+                    
+
+                    emiter.MarkLabel(isNotNull);
+                    emiter.LoadLocal(newObjectLocal);
+                    emiter.LoadLocal(nullableLocal);
+                    emiter.Call(property.SetMethod);
+                }
+
+                var nonliteralProperties = type.GetProperties().Where(t => 
+                    !(
+                        t.PropertyType.IsPrimitive 
+                        || t.PropertyType == typeof(string) 
+                        || t.PropertyType == typeof(Guid)
+                        || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)) 
+                    ));
+                
 
                 var nonListProperties = nonliteralProperties.Where(t => !typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType));
                 foreach (var property in nonListProperties) {
@@ -211,22 +265,34 @@ namespace Nested.Automapper
                     Type listType = typeof(List<>).MakeGenericType(innerType);
                     MethodInfo listTypeAdd = listType.GetMethod("Add");
                     ConstructorInfo listTypeConstructor = listType.GetConstructor(new Type[]{});
+                    var alreadyCreated = emiter.DefineLabel("AlreadyCreated" + property.Name);
+                    var newlyCreated = emiter.DefineLabel("NewlyCreated" + property.Name);
 
                     var listTypeLocal = emiter.DeclareLocal(listType);
                     emiter.NewObject(listTypeConstructor);
                     emiter.StoreLocal(listTypeLocal);
 
                     
-                    emiter.LoadLocal(listTypeLocal);
-                    emiter.LoadArgument(0);
-                    emiter.LoadArgument(1);
-                    emiter.LoadArgument(2);
+                    emiter.LoadLocal(listTypeLocal); //List<T> listTypeLocal = new List<T>();
+                    emiter.LoadArgument(0); //data
+                    emiter.LoadArgument(1); //dump
+                    emiter.LoadArgument(2); //depthstring
                     emiter.LoadConstant(property.Name + ".");
-                    emiter.Call(StringConcat2);
-                    emiter.Call(GenerateMapper(innerType));
-                    emiter.CastClass(innerType);
-                    emiter.Call(listTypeAdd);
+                    emiter.Call(StringConcat2);  //fullkey = depthstring + property.Name
+                    emiter.Call(GenerateMapper(innerType)); //var localObject = mapper(data,dump,fullkey)
+                    emiter.Duplicate();
+                    emiter.LoadNull();
+                    emiter.BranchIfEqual(alreadyCreated);
 
+                    emiter.CastClass(innerType);
+                    emiter.Call(listTypeAdd); //listtypeLocal.Add((T)localObject);
+                    emiter.Branch(newlyCreated);
+                    
+                    emiter.MarkLabel(alreadyCreated);
+                    emiter.Pop();
+                    emiter.Pop();
+
+                    emiter.MarkLabel(newlyCreated);
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadLocal(listTypeLocal);
                     emiter.Call(property.SetMethod);
@@ -249,8 +315,8 @@ namespace Nested.Automapper
                     Type innerType = property.PropertyType.GenericTypeArguments[0];
                     Type listType = typeof(List<>).MakeGenericType(innerType);
                     MethodInfo listTypeAdd = listType.GetMethod("Add");
-                    var alreadyCreated = emiter.DefineLabel("AlreadyCreated" + property.Name);
-                    var newlyCreated = emiter.DefineLabel("NewlyCreated" + property.Name);
+                    var alreadyCreated = emiter.DefineLabel("AlreadyCreated1" + property.Name);
+                    var newlyCreated = emiter.DefineLabel("NewlyCreated1" + property.Name);
 
                     emiter.LoadLocal(newObjectLocal);
                     emiter.Call(property.GetMethod);
