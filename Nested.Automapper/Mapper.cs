@@ -98,7 +98,7 @@ namespace Nested.Automapper
                         emiter.MarkLabel(isNullLabels[property.Name]);
                         emiter.Pop();
                     }
-
+                    
                     emiter.Pop();
                     emiter.LoadNull();
                     emiter.Return(); // return null
@@ -236,12 +236,48 @@ namespace Nested.Automapper
 
                 emiter.LoadLocal(newObjectLocal);
                 emiter.Return();
+                
                 emiter.MarkLabel(isInDictionary);
+                emiter.LoadArgument(1);
+                emiter.LoadLocal(keyLocal);
+                emiter.Call(DictionaryGet_Object_Object);
+                emiter.CastClass(type);
+                emiter.StoreLocal(newObjectLocal);
+                
+                foreach (var property in listProperties)
+                {
+                    Type innerType = property.PropertyType.GenericTypeArguments[0];
+                    Type listType = typeof(List<>).MakeGenericType(innerType);
+                    MethodInfo listTypeAdd = listType.GetMethod("Add");
+                    var alreadyCreated = emiter.DefineLabel("AlreadyCreated" + property.Name);
+                    var newlyCreated = emiter.DefineLabel("NewlyCreated" + property.Name);
+
+                    emiter.LoadLocal(newObjectLocal);
+                    emiter.Call(property.GetMethod);
+                    emiter.LoadArgument(0);
+                    emiter.LoadArgument(1);
+                    emiter.LoadArgument(2);
+                    emiter.LoadConstant(property.Name + ".");
+                    emiter.Call(StringConcat2);
+                    emiter.Call(GenerateMapper(innerType));
+                    emiter.Duplicate();
+                    emiter.LoadNull();
+                    emiter.BranchIfEqual(alreadyCreated);
+                    emiter.CastClass(innerType);
+                    emiter.Call(listTypeAdd);
+                    emiter.Branch(newlyCreated);
+                    emiter.MarkLabel(alreadyCreated);
+                    emiter.Pop();
+                    emiter.Pop();
+                    emiter.MarkLabel(newlyCreated);
+                }
                 emiter.LoadNull();
                 emiter.Return();
+
                 emiter.MarkLabel(keyIsNull);
                 emiter.LoadNull();
                 emiter.Return();
+                
                 emiter.CreateDelegate();
                 emit = emiter;
             }
@@ -251,14 +287,17 @@ namespace Nested.Automapper
 
         public static IEnumerable<T> Map<T>(IEnumerable<IDictionary<string, object>> source)
         {
-            var t = typeof(T);
-
+            var mapper = GenerateMapper(typeof(T)).CreateDelegate();
+            var dump = new Dictionary<object,object>();
+            var result = new List<T>();
             foreach (var row in source)
             {
-
+                var m = mapper(row, dump, "");
+                if (m != null)
+                    result.Add((T)m);
             }
 
-            return new List<T>();
+            return result;
         }
     }
 }

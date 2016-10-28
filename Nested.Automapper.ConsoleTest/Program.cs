@@ -19,41 +19,41 @@ namespace Nested.Automapper.ConsoleTest
                 {
                     {"C", "data"},
                     {"A.Data","data1"},
-                    {"A.Data1",1},
+                    {"A.Data1",2},
                     {"B.Data","data3"},
-                    {"B.Data1",1},
+                    {"B.Data1",4},
                     {"D.Data","data5"},
-                    {"D.Data1",1}
+                    {"D.Data1",6}
                 },
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
                     {"A.Data","data1"},
-                    {"A.Data1","data2"},
+                    {"A.Data1",2},
                     {"B.Data","data3"},
-                    {"B.Data1","data4"},
+                    {"B.Data1",4},
                     {"D.Data","data7"},
-                    {"D.Data1","data8"}
+                    {"D.Data1",8}
                 },
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
                     {"A.Data","data1"},
-                    {"A.Data1","data2"},
+                    {"A.Data1",2},
                     {"B.Data","data9"},
-                    {"B.Data1","data10"},
+                    {"B.Data1",10},
                     {"D.Data","data5"},
-                    {"D.Data1","data6"}
+                    {"D.Data1",6}
                 },
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
                     {"A.Data","data1"},
-                    {"A.Data1","data2"},
+                    {"A.Data1",2},
                     {"B.Data","data9"},
-                    {"B.Data1","data10"},
+                    {"B.Data1",10},
                     {"D.Data","data7"},
-                    {"D.Data1","data8"}
+                    {"D.Data1",8}
                 }
             };
 
@@ -70,8 +70,9 @@ namespace Nested.Automapper.ConsoleTest
 
             var mapper = Mapper.GenerateMapper(typeof(TestType1));
             var dump = new Dictionary<object, object>();
-            var result = mapper.CreateDelegate()(data[0], dump, "");
-
+            
+            //var result = mapper.CreateDelegate()(data[0], dump, "");
+            var result = Mapper.Map<TestType1>(data);
 
             //var mm = data[0]["ah"];
 
