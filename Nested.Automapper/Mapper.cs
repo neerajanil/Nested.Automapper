@@ -15,19 +15,20 @@ namespace Nested.Automapper
         static MethodInfo StringConcat2 = typeof(string).GetMethod("Concat", new Type[2] { typeof(string), typeof(string) });
         static MethodInfo ChangeType = typeof(System.Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
         static MethodInfo GetTypeFromhandle = typeof(Type).GetMethod("GetTypeFromHandle", new Type[] { typeof(RuntimeTypeHandle) });
-        static MethodInfo DictionaryGet_String_Object = typeof(IDictionary<string,object>).GetMethod("get_Item");
+        static MethodInfo DictionaryGet_String_Object = typeof(IDictionary<string, object>).GetMethod("get_Item");
         static MethodInfo DictionaryContains_String_Object = typeof(IDictionary<string, object>).GetMethod("ContainsKey");
         static MethodInfo DictionaryAdd_String_Object = typeof(IDictionary<string, object>).GetMethod("Add");
 
 
-        static MethodInfo DictionaryGet_Object_Object = typeof(IDictionary<object,object>).GetMethod("get_Item");
+        static MethodInfo DictionaryGet_Object_Object = typeof(IDictionary<object, object>).GetMethod("get_Item");
         static MethodInfo DictionaryContains_Object_Object = typeof(IDictionary<object, object>).GetMethod("ContainsKey");
         static MethodInfo DictionaryAdd_Object_Object = typeof(IDictionary<object, object>).GetMethod("Add");
 
         private static Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>> _keyGenerators = new Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>>();
 
         private static Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>> _mappers = new Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>>();
-        
+        private static Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> _mapperDelegates = new Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>();
+
 
 
 
@@ -71,14 +72,15 @@ namespace Nested.Automapper
                     emiter.NewObject(constructor);
                     emiter.Return();
                     emiter.CreateDelegate();
+                    _keyGenerators.Add(type.FullName, emiter);
                     emit = emiter;
                 }
                 else
                 {
                     var constructor = GetTupleConstructor(keyProperties.Count());
                     emiter.LoadArgument(1); //depthString
-                    
-                    Dictionary<string,Sigil.Label> isNullLabels = new Dictionary<string,Sigil.Label>(); //
+
+                    Dictionary<string, Sigil.Label> isNullLabels = new Dictionary<string, Sigil.Label>(); //
                     foreach (var property in keyProperties.OrderBy(t => t.Name))
                     {
                         var label = emiter.DefineLabel("IsNull" + property.Name);
@@ -99,18 +101,19 @@ namespace Nested.Automapper
                         emiter.MarkLabel(isNullLabels[property.Name]);
                         emiter.Pop();
                     }
-                    
+
                     emiter.Pop();
                     emiter.LoadNull();
                     emiter.Return(); // return null
-                    
-                    
+
+
                     emiter.CreateDelegate();
+                    _keyGenerators.Add(type.FullName, emiter);
                     emit = emiter;
-                    
+
                 }
             }
-            
+
             return emit;
         }
 
@@ -148,7 +151,7 @@ namespace Nested.Automapper
                 var newObjectLocal = emiter.DeclareLocal(type, "NewObject");
                 var keyLocal = emiter.DeclareLocal(typeof(object), "keyLocal");
 
-                
+
                 emiter.LoadArgument(0);//load rowdata
                 emiter.LoadArgument(2);//load depthString
                 emiter.Call(keyGenerator);// keygenerator(rowdata,depthstring)
@@ -177,7 +180,7 @@ namespace Nested.Automapper
                 var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
                 foreach (var property in literalProperties)
                 {
-                    
+
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
@@ -210,7 +213,7 @@ namespace Nested.Automapper
                     emiter.LoadLocalAddress(nullableLocal);
                     emiter.InitializeObject(property.PropertyType);
 
-                    
+
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
@@ -234,7 +237,7 @@ namespace Nested.Automapper
 
                     emiter.MarkLabel(isNull);
                     emiter.Pop();
-                    
+
 
                     emiter.MarkLabel(isNotNull);
                     emiter.LoadLocal(newObjectLocal);
@@ -242,17 +245,18 @@ namespace Nested.Automapper
                     emiter.Call(property.SetMethod);
                 }
 
-                var nonliteralProperties = type.GetProperties().Where(t => 
+                var nonliteralProperties = type.GetProperties().Where(t =>
                     !(
-                        t.PropertyType.IsPrimitive 
-                        || t.PropertyType == typeof(string) 
+                        t.PropertyType.IsPrimitive
+                        || t.PropertyType == typeof(string)
                         || t.PropertyType == typeof(Guid)
-                        || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)) 
+                        || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                     ));
-                
+
 
                 var nonListProperties = nonliteralProperties.Where(t => !typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType));
-                foreach (var property in nonListProperties) {
+                foreach (var property in nonListProperties)
+                {
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(1);
@@ -270,7 +274,7 @@ namespace Nested.Automapper
                     Type innerType = property.PropertyType.GenericTypeArguments[0];
                     Type listType = typeof(List<>).MakeGenericType(innerType);
                     MethodInfo listTypeAdd = listType.GetMethod("Add");
-                    ConstructorInfo listTypeConstructor = listType.GetConstructor(new Type[]{});
+                    ConstructorInfo listTypeConstructor = listType.GetConstructor(new Type[] { });
                     var alreadyCreated = emiter.DefineLabel("AlreadyCreated" + property.Name);
                     var newlyCreated = emiter.DefineLabel("NewlyCreated" + property.Name);
 
@@ -278,7 +282,7 @@ namespace Nested.Automapper
                     emiter.NewObject(listTypeConstructor);
                     emiter.StoreLocal(listTypeLocal);
 
-                    
+
                     emiter.LoadLocal(listTypeLocal); //List<T> listTypeLocal = new List<T>();
                     emiter.LoadArgument(0); //data
                     emiter.LoadArgument(1); //dump
@@ -293,7 +297,7 @@ namespace Nested.Automapper
                     emiter.CastClass(innerType);
                     emiter.Call(listTypeAdd); //listtypeLocal.Add((T)localObject);
                     emiter.Branch(newlyCreated);
-                    
+
                     emiter.MarkLabel(alreadyCreated);
                     emiter.Pop();
                     emiter.Pop();
@@ -308,14 +312,14 @@ namespace Nested.Automapper
 
                 emiter.LoadLocal(newObjectLocal);
                 emiter.Return();
-                
+
                 emiter.MarkLabel(isInDictionary);
                 emiter.LoadArgument(1);
                 emiter.LoadLocal(keyLocal);
                 emiter.Call(DictionaryGet_Object_Object);
                 emiter.CastClass(type);
                 emiter.StoreLocal(newObjectLocal);
-                
+
                 foreach (var property in listProperties)
                 {
                     Type innerType = property.PropertyType.GenericTypeArguments[0];
@@ -349,8 +353,9 @@ namespace Nested.Automapper
                 emiter.MarkLabel(keyIsNull);
                 emiter.LoadNull();
                 emiter.Return();
-                
-                emiter.CreateDelegate();
+
+                _mappers.Add(type.FullName, emiter);
+                _mapperDelegates.Add(type.FullName, emiter.CreateDelegate());
                 emit = emiter;
             }
             return emit;
@@ -359,8 +364,11 @@ namespace Nested.Automapper
 
         public static IEnumerable<T> Map<T>(IEnumerable<IDictionary<string, object>> source)
         {
-            var mapper = GenerateMapper(typeof(T)).CreateDelegate();
-            var dump = new Dictionary<object,object>();
+            Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
+            if (!_mapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
+                mapper = GenerateMapper(typeof(T)).CreateDelegate();
+
+            var dump = new Dictionary<object, object>();
             var result = new List<T>();
             foreach (var row in source)
             {
