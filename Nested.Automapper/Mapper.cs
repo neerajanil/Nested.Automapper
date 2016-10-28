@@ -41,8 +41,27 @@ namespace Nested.Automapper
             {
                 var emiter = Emit<Func<IDictionary<string, object>, string, object>>.NewDynamicMethod(type.Name + "KeyGenerator");
                 var keyProperties = type.GetProperties().Where(t => t.GetCustomAttributes(typeof(KeyAttribute), false).Count() > 0);
+                //verify primitivity
                 if (keyProperties.Count() == 0)
                 {
+                    var notNullLabel = emiter.DefineLabel("NotNull");
+                    var allProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType.Name == "String" || t.PropertyType.Name == "Guid");
+                    foreach (var property in keyProperties)
+                    {
+                        emiter.LoadArgument(0); //data
+                        emiter.LoadArgument(1);// depthString
+                        emiter.LoadConstant(property.Name); //propertyName
+                        emiter.Call(StringConcat2); //dataKey = depthString + propertyName
+                        emiter.CallVirtual(DictionaryGet_String_Object); // data[dataKey]
+                        emiter.LoadNull();
+                        emiter.CompareEqual();
+                        emiter.BranchIfFalse(notNullLabel); //if(data[dataKey] != null) goto notNullLabel
+                    }
+
+                    emiter.LoadNull();
+                    emiter.Return();
+
+                    emiter.MarkLabel(notNullLabel);
                     var constructor = typeof(Tuple<string, object>).GetConstructor(new Type[2] { typeof(string), typeof(object) });
                     emiter.LoadArgument(1);
                     var newGuidMethod = typeof(Guid).GetMethod("NewGuid");
@@ -56,17 +75,35 @@ namespace Nested.Automapper
                 else
                 {
                     var constructor = GetTupleConstructor(keyProperties.Count());
-                    emiter.LoadArgument(1);
+                    emiter.LoadArgument(1); //depthString
+                    
+                    Dictionary<string,Sigil.Label> isNullLabels = new Dictionary<string,Sigil.Label>(); //
                     foreach (var property in keyProperties)
                     {
-                        emiter.LoadArgument(0);
-                        emiter.LoadArgument(1);
-                        emiter.LoadConstant(property.Name);
-                        emiter.Call(StringConcat2);
-                        emiter.CallVirtual(DictionaryGet_String_Object);
+                        var label = emiter.DefineLabel("IsNull" + property.Name);
+                        isNullLabels.Add(property.Name, label);
+                        emiter.LoadArgument(0); //data
+                        emiter.LoadArgument(1);// depthString
+                        emiter.LoadConstant(property.Name); //propertyName
+                        emiter.Call(StringConcat2); //dataKey = depthString + propertyName
+                        emiter.CallVirtual(DictionaryGet_String_Object); // data[dataKey]
+                        emiter.Duplicate();
+                        emiter.LoadNull(); //null
+                        emiter.BranchIfEqual(label); // if(localValue == null) goto isNull
                     }
                     emiter.NewObject(constructor);
-                    emiter.Return();
+                    emiter.Return(); // return new Tuple<string,object,object,..>(depthString,data[],data[],..)
+                    foreach (var property in keyProperties)
+                    {
+                        emiter.MarkLabel(isNullLabels[property.Name]);
+                        emiter.Pop();
+                    }
+
+                    emiter.Pop();
+                    emiter.LoadNull();
+                    emiter.Return(); // return null
+                    
+                    
                     emiter.CreateDelegate();
                     emit = emiter;
                     
@@ -104,17 +141,24 @@ namespace Nested.Automapper
                 //                     source                      dump                     
                 var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "Mapper");
                 var keyGenerator = GenerateKeyGenerator(type);
-                var isInDictionary = emiter.DefineLabel("ifInDictionart");  // names are purely for ease of debugging, and are optional
+                var isInDictionary = emiter.DefineLabel("ifInDictionary");  // names are purely for ease of debugging, and are optional
                 var isNew = emiter.DefineLabel("IfNew");
+                var keyIsNull = emiter.DefineLabel("KeyIsNull");
                 var newObjectLocal = emiter.DeclareLocal(type, "NewObject");
                 var keyLocal = emiter.DeclareLocal(typeof(object), "keyLocal");
 
-                emiter.LoadArgument(1);//load dump
+                
                 emiter.LoadArgument(0);//load rowdata
                 emiter.LoadArgument(2);//load depthString
                 emiter.Call(keyGenerator);// keygenerator(rowdata,depthstring)
-                emiter.StoreLocal(keyLocal);
-                emiter.LoadLocal(keyLocal);
+                emiter.StoreLocal(keyLocal); //store key
+
+                emiter.LoadLocal(keyLocal); //load key
+                emiter.LoadNull(); //load null
+                emiter.BranchIfEqual(keyIsNull); //if key == null goto keyIsNull
+
+                emiter.LoadArgument(1);//load dump
+                emiter.LoadLocal(keyLocal); //load key
                 emiter.Call(DictionaryContains_Object_Object);// dump.Contains(key);
 
                 emiter.BranchIfFalse(isNew);
@@ -193,6 +237,9 @@ namespace Nested.Automapper
                 emiter.LoadLocal(newObjectLocal);
                 emiter.Return();
                 emiter.MarkLabel(isInDictionary);
+                emiter.LoadNull();
+                emiter.Return();
+                emiter.MarkLabel(keyIsNull);
                 emiter.LoadNull();
                 emiter.Return();
                 emiter.CreateDelegate();
