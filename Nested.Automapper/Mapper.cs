@@ -47,8 +47,8 @@ namespace Nested.Automapper
                 if (keyProperties.Count() == 0)
                 {
                     var notNullLabel = emiter.DefineLabel("NotNull");
-                    var allProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType.Name == "String" || t.PropertyType.Name == "Guid");
-                    foreach (var property in keyProperties)
+                    var allPrimitiveProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid) || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)));
+                    foreach (var property in allPrimitiveProperties)
                     {
                         emiter.LoadArgument(0); //data
                         emiter.LoadArgument(1);// depthString
