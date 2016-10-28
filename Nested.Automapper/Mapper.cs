@@ -13,7 +13,8 @@ namespace Nested.Automapper
     public static class Mapper
     {
         static MethodInfo StringConcat2 = typeof(string).GetMethod("Concat", new Type[2] { typeof(string), typeof(string) });
-        
+        static MethodInfo ChangeType = typeof(System.Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
+        static MethodInfo GetTypeFromhandle = typeof(Type).GetMethod("GetTypeFromHandle", new Type[] { typeof(RuntimeTypeHandle) });
         static MethodInfo DictionaryGet_String_Object = typeof(IDictionary<string,object>).GetMethod("get_Item");
         static MethodInfo DictionaryContains_String_Object = typeof(IDictionary<string, object>).GetMethod("ContainsKey");
         static MethodInfo DictionaryAdd_String_Object = typeof(IDictionary<string, object>).GetMethod("Add");
@@ -183,8 +184,10 @@ namespace Nested.Automapper
                     emiter.LoadConstant(property.Name);
                     emiter.Call(StringConcat2);
                     emiter.CallVirtual(DictionaryGet_String_Object);
-                    
-                    
+
+                    emiter.LoadConstant(property.PropertyType);
+                    emiter.Call(GetTypeFromhandle);
+                    emiter.Call(ChangeType);
 
                     if (property.PropertyType.IsValueType)
                         emiter.UnboxAny(property.PropertyType);
@@ -217,11 +220,14 @@ namespace Nested.Automapper
                     emiter.LoadNull();
                     emiter.BranchIfEqual(isNull);
 
-
+                    emiter.LoadConstant(innerType);
+                    emiter.Call(GetTypeFromhandle);
+                    emiter.Call(ChangeType);
                     if (property.PropertyType.IsValueType)
                         emiter.UnboxAny(innerType);
                     else
                         emiter.CastClass(innerType);
+
                     emiter.NewObject(nullableConstructor);
                     emiter.StoreLocal(nullableLocal);
                     emiter.Branch(isNotNull);
