@@ -78,7 +78,7 @@ namespace Nested.Automapper.ConsoleTest
                     {"B.Data","data3"},
                     {"B.Data1",4},
                     {"D.Data","data5"},
-                    {"D.Data1",null}
+                    //{"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {

@@ -145,7 +145,7 @@ namespace Nested.Automapper
                 //                     source                      dump                     
                 var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "Mapper");
                 var keyGenerator = GenerateKeyGenerator(type);
-                var isInDictionary = emiter.DefineLabel("ifInDictionary");  // names are purely for ease of debugging, and are optional
+                var isNotNew = emiter.DefineLabel("isNotNew");  
                 var isNew = emiter.DefineLabel("IfNew");
                 var keyIsNull = emiter.DefineLabel("KeyIsNull");
                 var newObjectLocal = emiter.DeclareLocal(type, "NewObject");
@@ -166,7 +166,7 @@ namespace Nested.Automapper
                 emiter.Call(DictionaryContains_Object_Object);// dump.Contains(key);
 
                 emiter.BranchIfFalse(isNew);
-                emiter.Branch(isInDictionary);
+                emiter.Branch(isNotNew);
 
                 emiter.MarkLabel(isNew);
                 emiter.NewObject(type.GetConstructor(new Type[] { }));
@@ -176,18 +176,25 @@ namespace Nested.Automapper
                 emiter.LoadLocal(keyLocal);
                 emiter.LoadLocal(newObjectLocal);
                 emiter.CallVirtual(DictionaryAdd_Object_Object);
-
+                var localString = emiter.DeclareLocal(typeof(string));
                 var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
                 foreach (var property in literalProperties)
                 {
-
+                    var isInDict = emiter.DefineLabel("isInDict" + property.Name);
+                    var isNotInDict = emiter.DefineLabel("isNotInDict" + property.Name);
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
                     emiter.Call(StringConcat2);
-                    emiter.CallVirtual(DictionaryGet_String_Object);
+                    emiter.StoreLocal(localString);
+                    emiter.LoadLocal(localString);
+                    emiter.Call(DictionaryContains_String_Object);
+                    emiter.BranchIfFalse(isNotInDict);
 
+                    emiter.LoadArgument(0);
+                    emiter.LoadLocal(localString);
+                    emiter.CallVirtual(DictionaryGet_String_Object);
                     emiter.LoadConstant(property.PropertyType);
                     emiter.Call(GetTypeFromhandle);
                     emiter.Call(ChangeType);
@@ -198,9 +205,17 @@ namespace Nested.Automapper
                         emiter.CastClass(property.PropertyType);
 
                     emiter.Call(property.SetMethod);
+                    emiter.Branch(isInDict);
+                    
+                    emiter.MarkLabel(isNotInDict);
+                    emiter.Pop();
+                    
+                    emiter.MarkLabel(isInDict);
+
                 }
 
                 var nullableProperties = type.GetProperties().Where(t => t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>));
+                
                 foreach (var property in nullableProperties)
                 {
                     Type innerType = property.PropertyType.GenericTypeArguments[0];
@@ -218,6 +233,13 @@ namespace Nested.Automapper
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
                     emiter.Call(StringConcat2);
+                    emiter.StoreLocal(localString);
+                    emiter.LoadLocal(localString);
+                    emiter.Call(DictionaryContains_String_Object);
+                    emiter.BranchIfFalse(isNotNull);
+
+                    emiter.LoadArgument(0);
+                    emiter.LoadLocal(localString);
                     emiter.CallVirtual(DictionaryGet_String_Object);
                     emiter.Duplicate();
                     emiter.LoadNull();
@@ -238,7 +260,7 @@ namespace Nested.Automapper
                     emiter.MarkLabel(isNull);
                     emiter.Pop();
 
-
+    
                     emiter.MarkLabel(isNotNull);
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadLocal(nullableLocal);
@@ -313,7 +335,7 @@ namespace Nested.Automapper
                 emiter.LoadLocal(newObjectLocal);
                 emiter.Return();
 
-                emiter.MarkLabel(isInDictionary);
+                emiter.MarkLabel(isNotNew);
                 emiter.LoadArgument(1);
                 emiter.LoadLocal(keyLocal);
                 emiter.Call(DictionaryGet_Object_Object);
@@ -373,6 +395,23 @@ namespace Nested.Automapper
             foreach (var row in source)
             {
                 var m = mapper(row, dump, "");
+                if (m != null)
+                    result.Add((T)m);
+            }
+
+            return result;
+        }
+        public static IEnumerable<T> Map<T>(IEnumerable<object> source)
+        {
+            Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
+            if (!_mapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
+                mapper = GenerateMapper(typeof(T)).CreateDelegate();
+
+            var dump = new Dictionary<object, object>();
+            var result = new List<T>();
+            foreach (var row in source)
+            {
+                var m = mapper(row as IDictionary<string,object>, dump, "");
                 if (m != null)
                     result.Add((T)m);
             }
