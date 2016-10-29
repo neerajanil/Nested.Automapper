@@ -109,7 +109,9 @@ public void static NestedMappingExample()
 
 ####Output
 > John owns 1 vehicles
+
 > Jane owns 2 vehicles
+
 > Alice owns 0 vehicles
 
 ####Points to Note
