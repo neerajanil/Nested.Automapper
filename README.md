@@ -20,6 +20,7 @@ When compared to other Automapper, Nested.Automapper is designed to be **extreme
 Lets say your are trying to access the following table on your DB
 
 Person
+
 | Name | Age | Occupation |
 |---|---|---|
 | John | 23 | FireFighter |
@@ -50,6 +51,7 @@ public void static SimpleMappingExample()
 Lets say you are trying to access the following related tables using a single query
 
 Person
+
 | PersonId | Name | Age | Occupation |
 |---|---|---|---|
 | 1 | John | 23 | FireFighter |
@@ -57,6 +59,7 @@ Person
 | 3 | Alive | 23 | Website Designer |
 
 Vehicles
+
 | VechicleId | Make | OwnerId |
 |---|---|---|
 | 1 | Toyota Prius | 1 |
