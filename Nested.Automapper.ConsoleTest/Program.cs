@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Nested.Automapper.ConsoleTest
+namespace Nested.ConsoleTest
 {
     
     class Program
@@ -102,7 +102,7 @@ namespace Nested.Automapper.ConsoleTest
                 }
             };
 
-            var result = Mapper.Map<TestType1>(data);
+            var result = Nested.Automapper.Map<TestType1>(data);
             
         }
     }
