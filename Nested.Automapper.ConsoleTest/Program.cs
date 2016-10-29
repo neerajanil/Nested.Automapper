@@ -58,15 +58,6 @@ namespace Nested.Automapper.ConsoleTest
             //    }
             //};
 
-            //var z = typeof(TestType6).GetProperty("Data").PropertyType.GetGenericTypeDefinition();
-            //bool flag1 = z == typeof(Nullable<int>).GetGenericTypeDefinition();
-
-            Nullable<int> n = new Nullable<int>();
-            var flag = n.HasValue;
-            var constructors = typeof(Nullable<int>).GetMethods();
-            var zz = System.Convert.ChangeType(0, typeof(bool));
-            
-
             List<Dictionary<string, object>> data = new List<Dictionary<string, object>>()
             {
                 
@@ -78,7 +69,6 @@ namespace Nested.Automapper.ConsoleTest
                     {"B.Data","data3"},
                     {"B.Data1",4},
                     {"D.Data","data5"},
-                    //{"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
@@ -112,43 +102,7 @@ namespace Nested.Automapper.ConsoleTest
                 }
             };
 
-
-            var s = typeof(string).Name;
-            s = typeof(Guid).Name;
-            //var z = typeof(Tuple<string, object>).GetConstructor(new Type[2]{ typeof(string),typeof(object) });
-            //var z1 = typeof(Dictionary<string, object>).GetMethod("get_Item");
-            //var z2 = typeof(string).GetMethod("Concat", new Type[2] { typeof(string), typeof(string) });
-            //var delegater = Mapper.GenerateKeyGenerator(typeof(TestType1));
-            //object key = delegater.CreateDelegate()(data[0], "");
-
-
-            var t = typeof(TestType1).GetProperty("B");
-
-            var mapper = Mapper.GenerateMapper(typeof(TestType1));
-            var dump = new Dictionary<object, object>();
-            
-            //var result = mapper.CreateDelegate()(data[0], dump, "");
             var result = Mapper.Map<TestType1>(data);
-
-            //var mm = data[0]["ah"];
-
-            //// Create a delegate that sums two integers
-            //var emiter = Emit<Func<int, int, int>>.NewDynamicMethod("MyMethod");
-            //emiter.LoadArgument(0);
-            //emiter.LoadArgument(1);
-            //emiter.Add();
-            //emiter.Return();
-            //var del = emiter.CreateDelegate();
-
-            //// prints "473"
-            //Console.WriteLine(del(314, 159));
-
-
-            //var flag = typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType);
-            //flag = t.PropertyType.IsAssignableFrom(typeof(IEnumerable<>));
-
-
-
             
         }
     }
