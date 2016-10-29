@@ -1,6 +1,6 @@
 # Nested.Automapper 
 
-Nested.Automapper is a library that converts a flat list of Dictiornary<string,object> objects or a list of loosely typed dynamic objects which can be converted into IDictionary<stirng,object> into a list of nested strongly typed objects.
+Nested.Automapper is a library that converts a flat List of Dictionary<string,object> objects or a List of loosely typed dynamic objects into a list of nested strongly typed objects for microORM's like dapper.
 
 
 ## When to use Nested.Automapper
@@ -25,7 +25,7 @@ Person
 |---|---|---|
 | John | 23 | FireFighter |
 | Jane | 32 | PoliceOfficer |
-| Alive | 23 | Website Designer |
+| Alice | 23 | Website Designer |
 
 
 Your code  for accessing the Db and then using Nested.Automapper to Map the data to strongly typed would look something like this.
@@ -56,7 +56,7 @@ Person
 |---|---|---|---|
 | 1 | John | 23 | FireFighter |
 | 2 | Jane | 32 | PoliceOfficer |
-| 3 | Alive | 23 | Website Designer |
+| 3 | Alice | 23 | Website Designer |
 
 Vehicles
 
