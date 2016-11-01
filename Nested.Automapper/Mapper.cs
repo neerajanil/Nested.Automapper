@@ -1,4 +1,5 @@
 ﻿using Sigil;
+using SigilNG = Sigil.NonGeneric;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,8 +11,18 @@ using System.Threading.Tasks;
 
 namespace Nested
 {
-    public static class Automapper
-    {
+
+    public static class FunctionGenerator {
+        
+        private static Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>> _keyGenerators = new Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>>();
+        private static Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>> _rowMappers = new Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>>();
+        //private static Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> _rowMapperDelegates = new Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>();
+        //private static Dictionary<string, Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>> _mappers = new Dictionary<string, Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>>();
+        //private static Dictionary<string, Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> _mapperDelegates = new Dictionary<string, Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>();
+        private static Dictionary<string, object> _mappers = new Dictionary<string, object>();
+        private static Dictionary<string, object> _mapperDelegates = new Dictionary<string, object>();
+
+
         static MethodInfo StringConcat2 = typeof(string).GetMethod("Concat", new Type[2] { typeof(string), typeof(string) });
         static MethodInfo ChangeType = typeof(System.Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
         static MethodInfo GetTypeFromhandle = typeof(Type).GetMethod("GetTypeFromHandle", new Type[] { typeof(RuntimeTypeHandle) });
@@ -23,12 +34,12 @@ namespace Nested
         static MethodInfo DictionaryGet_Object_Object = typeof(IDictionary<object, object>).GetMethod("get_Item");
         static MethodInfo DictionaryContains_Object_Object = typeof(IDictionary<object, object>).GetMethod("ContainsKey");
         static MethodInfo DictionaryAdd_Object_Object = typeof(IDictionary<object, object>).GetMethod("Add");
+        static ConstructorInfo DictionaryConstructor_Object_Object = typeof(Dictionary<object, object>).GetConstructor(new Type[] { });
 
-        private static Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>> _keyGenerators = new Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>>();
-
-        private static Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>> _mappers = new Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>>();
-        private static Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> _mapperDelegates = new Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>();
-
+        static MethodInfo IEnumerable_GetEnumerator = typeof(IEnumerable<IDictionary<string, object>>).GetMethod("GetEnumerator", new Type[] { });
+        static MethodInfo IEnumerator_GetCurrent = typeof(IEnumerator<IDictionary<string, object>>).GetMethod("get_Current", new Type[] { });
+        static MethodInfo IEnumerator_MoveNext = typeof(System.Collections.IEnumerator).GetMethod("MoveNext", new Type[] { });
+        static MethodInfo IEnumerator_Dispose = typeof(IDisposable).GetMethod("Dispose", new Type[] { });
 
 
 
@@ -134,19 +145,19 @@ namespace Nested
             }
         }
 
-        public static Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> GenerateMapper(Type type)
+        public static Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> GenerateRowMapper(Type type)
         {
 
             Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> emit;
-            if (_mappers.ContainsKey(type.FullName))
+            if (_rowMappers.ContainsKey(type.FullName))
             {
-                emit = _mappers[type.FullName];
+                emit = _rowMappers[type.FullName];
             }
             else
             {
 
                 //                     source                      dump                     
-                var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "Mapper");
+                var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "RowMapper");
                 var keyGenerator = GenerateKeyGenerator(type);
                 var isNotNew = emiter.DefineLabel("isNotNew");
                 var isNew = emiter.DefineLabel("IfNew");
@@ -285,7 +296,7 @@ namespace Nested
                         FieldInfo fi = property as FieldInfo;
                         emiter.StoreField(fi);
                     }
-                    
+
                 }
 
                 var nonliteralProperties = type.GetProperties().Where(t =>
@@ -315,7 +326,7 @@ namespace Nested
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name + ".");
                     emiter.Call(StringConcat2);
-                    emiter.Call(GenerateMapper(property.Type()));
+                    emiter.Call(GenerateRowMapper(property.Type()));
                     emiter.CastClass(property.Type());
 
                     PropertyInfo pi = property as PropertyInfo;
@@ -350,7 +361,7 @@ namespace Nested
                     emiter.LoadArgument(2); //depthstring
                     emiter.LoadConstant(property.Name + ".");
                     emiter.Call(StringConcat2);  //fullkey = depthstring + property.Name
-                    emiter.Call(GenerateMapper(innerType)); //var localObject = mapper(data,dump,fullkey)
+                    emiter.Call(GenerateRowMapper(innerType)); //var localObject = mapper(data,dump,fullkey)
                     emiter.Duplicate();
                     emiter.LoadNull();
                     emiter.BranchIfEqual(alreadyCreated);
@@ -407,14 +418,14 @@ namespace Nested
                         FieldInfo fi = property as FieldInfo;
                         emiter.LoadField(fi);
                     }
-                    
+
 
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(1);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name + ".");
                     emiter.Call(StringConcat2);
-                    emiter.Call(GenerateMapper(innerType));
+                    emiter.Call(GenerateRowMapper(innerType));
                     emiter.Duplicate();
                     emiter.LoadNull();
                     emiter.BranchIfEqual(alreadyCreated);
@@ -433,48 +444,147 @@ namespace Nested
                 emiter.LoadNull();
                 emiter.Return();
 
-                _mappers.Add(type.FullName, emiter);
-                _mapperDelegates.Add(type.FullName, emiter.CreateDelegate());
+                _rowMappers.Add(type.FullName, emiter);
+                emiter.CreateDelegate();
+                //_rowMapperDelegates.Add(type.FullName, emiter.CreateDelegate());
                 emit = emiter;
             }
             return emit;
         }
 
+        public static Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> GenerateMapper<T>()
+        {
+            Type type = typeof(T);
+            Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> emit = null;
+            if (_mappers.ContainsKey(type.FullName))
+            {
+                emit = (Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>)_mappers[type.FullName];
+            }
+            else
+            {
+
+                ConstructorInfo listConstructor = typeof(List<T>).GetConstructor(new Type[] { });
+                MethodInfo listAdd = typeof(List<T>).GetMethod("Add", new Type[] { typeof(T) });
+
+                Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> emiter = Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>.NewDynamicMethod(type.Name + "Mapper");
+
+
+                var enumeratorLocal = emiter.DeclareLocal<IEnumerator<IDictionary<string, object>>>("enumerator");
+                var listLocal = emiter.DeclareLocal<List<T>>("list");
+                var dumpLocal = emiter.DeclareLocal<IDictionary<object, object>>("dump");
+
+
+                var loopFinishedLabel = emiter.DefineLabel("loopFinished");
+                var loopCheckLabel = emiter.DefineLabel("loopCheck");
+                var loopBeginLabel = emiter.DefineLabel("loopBegin");
+                var finallyFinishedLabel = emiter.DefineLabel("finallyFinished");
+                var isNullLabel = emiter.DefineLabel("isNull");
+
+
+                emiter.NewObject(listConstructor);
+                emiter.StoreLocal(listLocal);
+                emiter.NewObject(DictionaryConstructor_Object_Object);
+                emiter.StoreLocal(dumpLocal);
+
+                emiter.LoadArgument(0);
+                emiter.CallVirtual(IEnumerable_GetEnumerator);
+                emiter.StoreLocal(enumeratorLocal);
+
+                //try {
+                var exceptionBlock = emiter.BeginExceptionBlock();
+                emiter.Branch(loopCheckLabel);
+
+                emiter.MarkLabel(loopBeginLabel);
+
+                emiter.LoadLocal(listLocal);
+                emiter.LoadLocal(enumeratorLocal);
+                emiter.CallVirtual(IEnumerator_GetCurrent);
+
+                emiter.LoadLocal(dumpLocal);
+                emiter.LoadConstant("");
+                emiter.Call(GenerateRowMapper(type)); // var rowResult = rowMapper ( row, dump, depthString = "" );
+                emiter.Duplicate();
+                emiter.LoadNull();
+                emiter.BranchIfEqual(isNullLabel);
+
+
+                emiter.CastClass(typeof(T));
+                emiter.Call(listAdd); // listLocal.Add((T)rowResult);
+                emiter.Branch(loopCheckLabel);
+
+                emiter.MarkLabel(isNullLabel);
+                emiter.Pop();
+                emiter.Pop();
+
+
+                emiter.MarkLabel(loopCheckLabel);
+                emiter.LoadLocal(enumeratorLocal);
+                emiter.CallVirtual(IEnumerator_MoveNext);
+                emiter.BranchIfTrue(loopBeginLabel);
+                emiter.Leave(loopFinishedLabel);
+                //}
+                //finallY {
+                var finallyBlock = emiter.BeginFinallyBlock(exceptionBlock);
+                emiter.LoadNull();
+                emiter.LoadLocal(enumeratorLocal);
+                emiter.CompareEqual();
+                emiter.BranchIfTrue(finallyFinishedLabel);
+                emiter.LoadLocal(enumeratorLocal);
+                emiter.CallVirtual(IEnumerator_Dispose);
+                emiter.MarkLabel(finallyFinishedLabel);
+                emiter.EndFinallyBlock(finallyBlock);
+                emiter.EndExceptionBlock(exceptionBlock);
+                //}
+
+                emiter.MarkLabel(loopFinishedLabel);
+                emiter.LoadLocal(listLocal);
+                emiter.Return(); // return listLocal;
+                _mapperDelegates.Add(type.FullName, emiter.CreateDelegate());
+                _mappers.Add(type.FullName, emiter);
+                emit = emiter;
+            }
+            return emit;
+        }
+
+        public static Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>> GetMapperDelegate<T>()
+        {
+            Type t = typeof(T);
+            if (!_mapperDelegates.ContainsKey(t.FullName))
+            {
+                GenerateMapper<T>();
+            }
+            return (Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>)_mapperDelegates[t.FullName];
+        }
+
+    }
+
+
+    public static class Automapper
+    {
+        
+
 
         public static IEnumerable<T> Map<T>(IEnumerable<IDictionary<string, object>> source)
         {
-            Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
-            if (!_mapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
-                mapper = GenerateMapper(typeof(T)).CreateDelegate();
-
-            var dump = new Dictionary<object, object>();
-            var result = new List<T>();
-            foreach (var row in source)
-            {
-                var m = mapper(row, dump, "");
-                if (m != null)
-                    result.Add((T)m);
-            }
-
-            return result;
+            return FunctionGenerator.GetMapperDelegate<T>()(source);
         }
-        public static IEnumerable<T> Map<T>(IEnumerable<object> source)
-        {
-            Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
-            if (!_mapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
-                mapper = GenerateMapper(typeof(T)).CreateDelegate();
+        //public static IEnumerable<T> Map<T>(IEnumerable<object> source)
+        //{
+        //    Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
+        //    if (!_rowMapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
+        //        mapper = GenerateRowMapper(typeof(T)).CreateDelegate();
 
-            var dump = new Dictionary<object, object>();
-            var result = new List<T>();
-            foreach (var row in source)
-            {
-                var m = mapper(row as IDictionary<string, object>, dump, "");
-                if (m != null)
-                    result.Add((T)m);
-            }
+        //    var dump = new Dictionary<object, object>();
+        //    var result = new List<T>();
+        //    foreach (var row in source)
+        //    {
+        //        var m = mapper(row as IDictionary<string, object>, dump, "");
+        //        if (m != null)
+        //            result.Add((T)m);
+        //    }
 
-            return result;
-        }
+        //    return result;
+        //}
     }
     public static class MappingHelper
     {

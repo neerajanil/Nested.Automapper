@@ -101,8 +101,9 @@ namespace Nested.ConsoleTest
                     {"D.Data1",8}
                 }
             };
+            //var meh = Automapper.GenerateMapper<TestType1>().CreateDelegate()(data);
 
-            var result = Nested.Automapper.Map<TestType1>(data);
+            var result = Nested.Automapper.Map<TestType1>(data.Select(t => (object)t));
             
         }
     }
