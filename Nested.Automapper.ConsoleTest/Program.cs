@@ -69,13 +69,13 @@ namespace Nested.ConsoleTest
                     {"A.Data1",2},
                     {"B.Data","data3"},
                     {"B.Data1",4},
-                    //{"D.Data","data5"},
+                    {"D.Data","data5"},
                     {"D.Data1",6}
                 },
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
-                    {"A.Data","data1"},
+                    //{"A.Data","data1"},
                     {"A.Data1",2},
                     {"B.Data","data3"},
                     {"B.Data1",4},
@@ -85,17 +85,17 @@ namespace Nested.ConsoleTest
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
-                    {"A.Data","data1"},
+                    //{"A.Data","data1"},
                     {"A.Data1",2},
                     {"B.Data","data9"},
                     {"B.Data1",10},
-                    //{"D.Data","data5"},
+                    {"D.Data","data5"},
                     {"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
                     {"C", "data"},
-                    {"A.Data","data1"},
+                    //{"A.Data","data1"},
                     {"A.Data1",2},
                     {"B.Data","data9"},
                     {"B.Data1",10},
@@ -149,6 +149,7 @@ namespace Nested.ConsoleTest
         [Key]
         public string Data { get; set; }
 
+        [Key]
         public int Data1 { get; set; }
     }
 
@@ -157,6 +158,7 @@ namespace Nested.ConsoleTest
         [Key]
         public string Data { get; set; }
 
+        
         public Nullable<int> Data1 { get; set; }
     }
 }
