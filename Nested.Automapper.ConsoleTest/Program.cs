@@ -154,7 +154,7 @@ namespace Nested.ConsoleTest
 
     public class TestType6
     {
-        [Key]
+        //[Key]
         public string Data { get; set; }
 
         public Nullable<int> Data1 { get; set; }

@@ -67,6 +67,8 @@ namespace Nested
                     var allPrimitiveFields = type.MappedFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid) || (t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>)));
                     foreach (var property in allPrimitiveProperties.Cast<MemberInfo>().Concat(allPrimitiveFields.Cast<MemberInfo>()))
                     {
+                        var tryCatchDone = emiter.DefineLabel("tryCatchDone" + property.Name);
+                        var exceptionBlock = emiter.BeginExceptionBlock();
                         emiter.LoadArgument(0); //data
                         emiter.LoadArgument(1);// depthString
                         emiter.LoadConstant(property.Name); //propertyName
@@ -74,7 +76,14 @@ namespace Nested
                         emiter.CallVirtual(DictionaryGet_String_Object); // data[dataKey]
                         emiter.LoadNull();
                         emiter.CompareEqual();
-                        emiter.BranchIfFalse(notNullLabel); //if(data[dataKey] != null) goto notNullLabel
+                        emiter.BranchIfTrue(tryCatchDone); //if(data[dataKey] != null) goto notNullLabel
+
+                        emiter.Leave(notNullLabel);
+                        emiter.MarkLabel(tryCatchDone);
+                        var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
+                        emiter.Pop();
+                        emiter.EndCatchBlock(catchBlock);
+                        emiter.EndExceptionBlock(exceptionBlock);
                     }
 
                     emiter.LoadNull();
