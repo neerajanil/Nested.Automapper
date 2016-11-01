@@ -69,8 +69,8 @@ namespace Nested.ConsoleTest
                     {"A.Data1",2},
                     {"B.Data","data3"},
                     {"B.Data1",4},
-                    {"D.Data","data5"},
-                    //{"D.Data1",6}
+                    //{"D.Data","data5"},
+                    {"D.Data1",6}
                 },
                 new Dictionary<string, object>()
                 {
@@ -89,8 +89,8 @@ namespace Nested.ConsoleTest
                     {"A.Data1",2},
                     {"B.Data","data9"},
                     {"B.Data1",10},
-                    {"D.Data","data5"},
-                    //{"D.Data1",null}
+                    //{"D.Data","data5"},
+                    {"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
@@ -104,7 +104,7 @@ namespace Nested.ConsoleTest
                 }
             };
             //var meh = Automapper.GenerateMapper<TestType1>().CreateDelegate()(data);
-
+            var blah = FunctionGenerator.GenerateKeyGenerator(typeof(TestType5)).Instructions();
             var result = Nested.Automapper.Map<TestType1>(data);
             
         }
@@ -154,7 +154,7 @@ namespace Nested.ConsoleTest
 
     public class TestType6
     {
-        //[Key]
+        [Key]
         public string Data { get; set; }
 
         public Nullable<int> Data1 { get; set; }

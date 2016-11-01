@@ -104,13 +104,13 @@ namespace Nested
                 else
                 {
                     var constructor = GetTupleConstructor(keys.Count());
-                    emiter.LoadArgument(1); //depthString
-
-                    Dictionary<string, Sigil.Label> isNullLabels = new Dictionary<string, Sigil.Label>(); //
+                    var isNullLabel = emiter.DefineLabel("IsNull");
+                    var tryCatchDoneLabel = emiter.DefineLabel("tryCatchDone");
+                    var localKey = emiter.DeclareLocal<object>("key");
+                    var exceptionBlock = emiter.BeginExceptionBlock();
+                    emiter.LoadArgument(1);
                     foreach (var property in keys.OrderBy(t => t.Name))
                     {
-                        var label = emiter.DefineLabel("IsNull" + property.Name);
-                        isNullLabels.Add(property.Name, label);
                         emiter.LoadArgument(0); //data
                         emiter.LoadArgument(1);// depthString
                         emiter.LoadConstant(property.Name); //propertyName
@@ -118,20 +118,29 @@ namespace Nested
                         emiter.CallVirtual(DictionaryGet_String_Object); // data[dataKey]
                         emiter.Duplicate();
                         emiter.LoadNull(); //null
-                        emiter.BranchIfEqual(label); // if(localValue == null) goto isNull
+                        emiter.BranchIfEqual(isNullLabel); // if(localValue == null) goto isNull
                     }
+
                     emiter.NewObject(constructor);
-                    emiter.Return(); // return new Tuple<string,object,object,..>(depthString,data[],data[],..)
-                    foreach (var property in keys.OrderByDescending(t => t.Name))
-                    {
-                        emiter.MarkLabel(isNullLabels[property.Name]);
-                        emiter.Pop();
-                    }
+                    emiter.StoreLocal(localKey);
+                    emiter.Leave(tryCatchDoneLabel);
 
-                    emiter.Pop();
+                    emiter.MarkLabel(isNullLabel);
                     emiter.LoadNull();
-                    emiter.Return(); // return null
+                    emiter.StoreLocal(localKey);
+                    emiter.Leave(tryCatchDoneLabel);
 
+                    var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
+                    emiter.LoadNull();
+                    emiter.StoreLocal(localKey);
+                    emiter.Leave(tryCatchDoneLabel);
+
+                    emiter.EndCatchBlock(catchBlock);
+                    emiter.EndExceptionBlock(exceptionBlock);
+
+                    emiter.MarkLabel(tryCatchDoneLabel);
+                    emiter.LoadLocal(localKey);
+                    emiter.Return(); // return new Tuple<string,object,object,..>(depthString,data[],data[],..)
 
                     emiter.CreateDelegate();
                     _keyGenerators.Add(type.FullName, emiter);
