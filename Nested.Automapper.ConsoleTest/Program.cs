@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -69,6 +70,7 @@ namespace Nested.ConsoleTest
                     {"B.Data","data3"},
                     {"B.Data1",4},
                     {"D.Data","data5"},
+                    //{"D.Data1",6}
                 },
                 new Dictionary<string, object>()
                 {
@@ -88,7 +90,7 @@ namespace Nested.ConsoleTest
                     {"B.Data","data9"},
                     {"B.Data1",10},
                     {"D.Data","data5"},
-                    {"D.Data1",null}
+                    //{"D.Data1",null}
                 },
                 new Dictionary<string, object>()
                 {
@@ -113,6 +115,7 @@ namespace Nested.ConsoleTest
         [Key]
         public string C { get; set; }
 
+        
         public TestType5 A { get; set; }
 
         public List<TestType5> B { get; set; }

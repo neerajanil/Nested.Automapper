@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Nested
 {
@@ -54,15 +55,16 @@ namespace Nested
             else
             {
                 var emiter = Emit<Func<IDictionary<string, object>, string, object>>.NewDynamicMethod(type.Name + "KeyGenerator");
-                var keyProperties = type.GetProperties().Where(t => t.GetCustomAttributes(typeof(KeyAttribute), false).Count() > 0);
-                var keyFields = type.GetFields().Where(t => t.GetCustomAttributes(typeof(KeyAttribute), false).Count() > 0);
+                var keyProperties = type.MappedProperties().Where(t => t.GetCustomAttributes(typeof(KeyAttribute), false).Count() > 0);
+                var keyFields = type.MappedFields().Where(t => t.GetCustomAttributes(typeof(KeyAttribute), false).Count() > 0);
                 var keys = keyProperties.Cast<MemberInfo>().Concat(keyFields.Cast<MemberInfo>());
+                
                 //verify primitivity
                 if (keys.Count() == 0)
                 {
                     var notNullLabel = emiter.DefineLabel("NotNull");
-                    var allPrimitiveProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid) || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)));
-                    var allPrimitiveFields = type.GetFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid) || (t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>)));
+                    var allPrimitiveProperties = type.MappedProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid) || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)));
+                    var allPrimitiveFields = type.MappedFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid) || (t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>)));
                     foreach (var property in allPrimitiveProperties.Cast<MemberInfo>().Concat(allPrimitiveFields.Cast<MemberInfo>()))
                     {
                         emiter.LoadArgument(0); //data
@@ -146,6 +148,313 @@ namespace Nested
             }
         }
 
+        //public static Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> GenerateRowMapper(Type type)
+        //{
+
+        //    Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> emit;
+        //    if (_rowMappers.ContainsKey(type.FullName))
+        //    {
+        //        emit = _rowMappers[type.FullName];
+        //    }
+        //    else
+        //    {
+
+        //        //                     source                      dump                     
+        //        var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "RowMapper");
+        //        var keyGenerator = GenerateKeyGenerator(type);
+        //        var isNotNew = emiter.DefineLabel("isNotNew");
+        //        var isNew = emiter.DefineLabel("IfNew");
+        //        var keyIsNull = emiter.DefineLabel("KeyIsNull");
+        //        var newObjectLocal = emiter.DeclareLocal(type, "NewObject");
+        //        var keyLocal = emiter.DeclareLocal(typeof(object), "keyLocal");
+
+
+        //        emiter.LoadArgument(0);//load rowdata
+        //        emiter.LoadArgument(2);//load depthString
+        //        emiter.Call(keyGenerator);// keygenerator(rowdata,depthstring)
+        //        emiter.StoreLocal(keyLocal); //store key
+
+        //        emiter.LoadLocal(keyLocal); //load key
+        //        emiter.LoadNull(); //load null
+        //        emiter.BranchIfEqual(keyIsNull); //if key == null goto keyIsNull
+
+        //        emiter.LoadArgument(1);//load dump
+        //        emiter.LoadLocal(keyLocal); //load key
+        //        emiter.Call(DictionaryContains_Object_Object);// dump.Contains(key);
+
+        //        emiter.BranchIfFalse(isNew);
+        //        emiter.Branch(isNotNew);
+
+        //        emiter.MarkLabel(isNew);
+        //        emiter.NewObject(type.GetConstructor(new Type[] { }));
+
+        //        emiter.StoreLocal(newObjectLocal);
+        //        emiter.LoadArgument(1);//load dump
+        //        emiter.LoadLocal(keyLocal);
+        //        emiter.LoadLocal(newObjectLocal);
+        //        emiter.CallVirtual(DictionaryAdd_Object_Object);
+        //        var localString = emiter.DeclareLocal(typeof(string));
+        //        var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
+        //        var literalFields = type.GetFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid));
+        //        foreach (var property in literalProperties.Cast<MemberInfo>().Concat(literalFields.Cast<MemberInfo>()))
+        //        {
+        //            var isInDict = emiter.DefineLabel("isInDict" + property.Name);
+        //            var isNotInDict = emiter.DefineLabel("isNotInDict" + property.Name);
+        //            emiter.LoadLocal(newObjectLocal);
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadArgument(2);
+        //            emiter.LoadConstant(property.Name);
+        //            emiter.Call(StringConcat2);
+        //            emiter.StoreLocal(localString);
+        //            emiter.LoadLocal(localString);
+        //            emiter.Call(DictionaryContains_String_Object);
+        //            emiter.BranchIfFalse(isNotInDict);
+
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadLocal(localString);
+        //            emiter.CallVirtual(DictionaryGet_String_Object);
+        //            emiter.LoadConstant(property.Type());
+        //            emiter.Call(GetTypeFromhandle);
+        //            emiter.Call(ChangeType);
+
+        //            if (property.Type().IsValueType)
+        //                emiter.UnboxAny(property.Type());
+        //            else
+        //                emiter.CastClass(property.Type());
+
+        //            PropertyInfo pi = property as PropertyInfo;
+        //            if (pi != null)
+        //                emiter.Call(pi.SetMethod);
+        //            else
+        //            {
+        //                FieldInfo fi = property as FieldInfo;
+        //                emiter.StoreField(fi);
+        //            }
+        //            emiter.Branch(isInDict);
+
+        //            emiter.MarkLabel(isNotInDict);
+        //            emiter.Pop();
+
+        //            emiter.MarkLabel(isInDict);
+
+        //        }
+
+        //        var nullableProperties = type.GetProperties().Where(t => t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>));
+        //        var nullableFields = type.GetFields().Where(t => t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>));
+
+        //        foreach (var property in nullableProperties.Cast<MemberInfo>().Concat(nullableFields.Cast<MemberInfo>()))
+        //        {
+        //            Type innerType = property.Type().GenericTypeArguments[0];
+        //            var nullableConstructor = property.Type().GetConstructor(new Type[] { innerType });
+        //            var nullableNullConstructor = property.Type().GetConstructor(new Type[] { });
+        //            var isNull = emiter.DefineLabel("IsNull" + property.Name);
+        //            var isNotNull = emiter.DefineLabel("IsNotNull" + property.Name);
+
+        //            var nullableLocal = emiter.DeclareLocal(property.Type(), "NullableLocal" + property.Name);
+        //            emiter.LoadLocalAddress(nullableLocal);
+        //            emiter.InitializeObject(property.Type());
+
+
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadArgument(2);
+        //            emiter.LoadConstant(property.Name);
+        //            emiter.Call(StringConcat2);
+        //            emiter.StoreLocal(localString);
+        //            emiter.LoadLocal(localString);
+        //            emiter.Call(DictionaryContains_String_Object);
+        //            emiter.BranchIfFalse(isNotNull);
+
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadLocal(localString);
+        //            emiter.CallVirtual(DictionaryGet_String_Object);
+        //            emiter.Duplicate();
+        //            emiter.LoadNull();
+        //            emiter.BranchIfEqual(isNull);
+
+        //            emiter.LoadConstant(innerType);
+        //            emiter.Call(GetTypeFromhandle);
+        //            emiter.Call(ChangeType);
+        //            if (property.Type().IsValueType)
+        //                emiter.UnboxAny(innerType);
+        //            else
+        //                emiter.CastClass(innerType);
+
+        //            emiter.NewObject(nullableConstructor);
+        //            emiter.StoreLocal(nullableLocal);
+        //            emiter.Branch(isNotNull);
+
+        //            emiter.MarkLabel(isNull);
+        //            emiter.Pop();
+
+
+        //            emiter.MarkLabel(isNotNull);
+        //            emiter.LoadLocal(newObjectLocal);
+        //            emiter.LoadLocal(nullableLocal);
+
+        //            PropertyInfo pi = property as PropertyInfo;
+        //            if (pi != null)
+        //                emiter.Call(pi.SetMethod);
+        //            else
+        //            {
+        //                FieldInfo fi = property as FieldInfo;
+        //                emiter.StoreField(fi);
+        //            }
+
+        //        }
+
+        //        var nonliteralProperties = type.GetProperties().Where(t =>
+        //            !(
+        //                t.PropertyType.IsPrimitive
+        //                || t.PropertyType == typeof(string)
+        //                || t.PropertyType == typeof(Guid)
+        //                || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+        //            ));
+        //        var nonliteralFields = type.GetFields().Where(t =>
+        //            !(
+        //                t.FieldType.IsPrimitive
+        //                || t.FieldType == typeof(string)
+        //                || t.FieldType == typeof(Guid)
+        //                || (t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>))
+        //            ));
+
+
+        //        var nonListProperties = nonliteralProperties.Where(t => !typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType));
+        //        var nonListFields = nonliteralFields.Where(t => !typeof(System.Collections.IEnumerable).IsAssignableFrom(t.FieldType));
+
+        //        foreach (var property in nonListProperties.Cast<MemberInfo>().Concat(nonListFields.Cast<MemberInfo>()))
+        //        {
+        //            emiter.LoadLocal(newObjectLocal);
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadArgument(1);
+        //            emiter.LoadArgument(2);
+        //            emiter.LoadConstant(property.Name + ".");
+        //            emiter.Call(StringConcat2);
+        //            emiter.Call(GenerateRowMapper(property.Type()));
+        //            emiter.CastClass(property.Type());
+
+        //            PropertyInfo pi = property as PropertyInfo;
+        //            if (pi != null)
+        //                emiter.Call(pi.SetMethod);
+        //            else
+        //            {
+        //                FieldInfo fi = property as FieldInfo;
+        //                emiter.StoreField(fi);
+        //            }
+        //        }
+
+        //        var listProperties = nonliteralProperties.Where(t => typeof(System.Collections.IEnumerable).IsAssignableFrom(t.PropertyType));
+        //        var listFields = nonliteralFields.Where(t => typeof(System.Collections.IEnumerable).IsAssignableFrom(t.FieldType));
+        //        foreach (var property in listProperties.Cast<MemberInfo>().Concat(listFields.Cast<MemberInfo>()))
+        //        {
+        //            Type innerType = property.Type().GenericTypeArguments[0];
+        //            Type listType = typeof(List<>).MakeGenericType(innerType);
+        //            MethodInfo listTypeAdd = listType.GetMethod("Add");
+        //            ConstructorInfo listTypeConstructor = listType.GetConstructor(new Type[] { });
+        //            var alreadyCreated = emiter.DefineLabel("AlreadyCreated" + property.Name);
+        //            var newlyCreated = emiter.DefineLabel("NewlyCreated" + property.Name);
+
+        //            var listTypeLocal = emiter.DeclareLocal(listType);
+        //            emiter.NewObject(listTypeConstructor);
+        //            emiter.StoreLocal(listTypeLocal);
+
+
+        //            emiter.LoadLocal(listTypeLocal); //List<T> listTypeLocal = new List<T>();
+        //            emiter.LoadArgument(0); //data
+        //            emiter.LoadArgument(1); //dump
+        //            emiter.LoadArgument(2); //depthstring
+        //            emiter.LoadConstant(property.Name + ".");
+        //            emiter.Call(StringConcat2);  //fullkey = depthstring + property.Name
+        //            emiter.Call(GenerateRowMapper(innerType)); //var localObject = mapper(data,dump,fullkey)
+        //            emiter.Duplicate();
+        //            emiter.LoadNull();
+        //            emiter.BranchIfEqual(alreadyCreated);
+
+        //            emiter.CastClass(innerType);
+        //            emiter.Call(listTypeAdd); //listtypeLocal.Add((T)localObject);
+        //            emiter.Branch(newlyCreated);
+
+        //            emiter.MarkLabel(alreadyCreated);
+        //            emiter.Pop();
+        //            emiter.Pop();
+
+        //            emiter.MarkLabel(newlyCreated);
+        //            emiter.LoadLocal(newObjectLocal);
+        //            emiter.LoadLocal(listTypeLocal);
+
+        //            PropertyInfo pi = property as PropertyInfo;
+        //            if (pi != null)
+        //                emiter.Call(pi.SetMethod);
+        //            else
+        //            {
+        //                FieldInfo fi = property as FieldInfo;
+        //                emiter.StoreField(fi);
+        //            }
+
+        //        }
+
+
+        //        emiter.LoadLocal(newObjectLocal);
+        //        emiter.Return();
+
+        //        emiter.MarkLabel(isNotNew);
+        //        emiter.LoadArgument(1);
+        //        emiter.LoadLocal(keyLocal);
+        //        emiter.Call(DictionaryGet_Object_Object);
+        //        emiter.CastClass(type);
+        //        emiter.StoreLocal(newObjectLocal);
+
+        //        foreach (var property in listProperties.Cast<MemberInfo>().Concat(listFields.Cast<MemberInfo>()))
+        //        {
+        //            Type innerType = property.Type().GenericTypeArguments[0];
+        //            Type listType = typeof(List<>).MakeGenericType(innerType);
+        //            MethodInfo listTypeAdd = listType.GetMethod("Add");
+        //            var alreadyCreated = emiter.DefineLabel("AlreadyCreated1" + property.Name);
+        //            var newlyCreated = emiter.DefineLabel("NewlyCreated1" + property.Name);
+
+        //            emiter.LoadLocal(newObjectLocal);
+
+        //            PropertyInfo pi = property as PropertyInfo;
+        //            if (pi != null)
+        //                emiter.Call(pi.GetMethod);
+        //            else
+        //            {
+        //                FieldInfo fi = property as FieldInfo;
+        //                emiter.LoadField(fi);
+        //            }
+
+
+        //            emiter.LoadArgument(0);
+        //            emiter.LoadArgument(1);
+        //            emiter.LoadArgument(2);
+        //            emiter.LoadConstant(property.Name + ".");
+        //            emiter.Call(StringConcat2);
+        //            emiter.Call(GenerateRowMapper(innerType));
+        //            emiter.Duplicate();
+        //            emiter.LoadNull();
+        //            emiter.BranchIfEqual(alreadyCreated);
+        //            emiter.CastClass(innerType);
+        //            emiter.Call(listTypeAdd);
+        //            emiter.Branch(newlyCreated);
+        //            emiter.MarkLabel(alreadyCreated);
+        //            emiter.Pop();
+        //            emiter.Pop();
+        //            emiter.MarkLabel(newlyCreated);
+        //        }
+        //        emiter.LoadNull();
+        //        emiter.Return();
+
+        //        emiter.MarkLabel(keyIsNull);
+        //        emiter.LoadNull();
+        //        emiter.Return();
+
+        //        _rowMappers.Add(type.FullName, emiter);
+        //        //emiter.CreateDelegate();
+        //        _rowMapperDelegates.Add(type.FullName, emiter.CreateDelegate());
+        //        emit = emiter;
+        //    }
+        //    return emit;
+        //}
+
         public static Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> GenerateRowMapper(Type type)
         {
 
@@ -191,25 +500,32 @@ namespace Nested
                 emiter.LoadLocal(keyLocal);
                 emiter.LoadLocal(newObjectLocal);
                 emiter.CallVirtual(DictionaryAdd_Object_Object);
-                var localString = emiter.DeclareLocal(typeof(string));
-                var literalProperties = type.GetProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
-                var literalFields = type.GetFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid));
+
+                var localString = emiter.DeclareLocal<string>("localString");
+                var literalProperties = type.MappedProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid));
+                var literalFields = type.MappedFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid));
                 foreach (var property in literalProperties.Cast<MemberInfo>().Concat(literalFields.Cast<MemberInfo>()))
                 {
-                    var isInDict = emiter.DefineLabel("isInDict" + property.Name);
-                    var isNotInDict = emiter.DefineLabel("isNotInDict" + property.Name);
-                    emiter.LoadLocal(newObjectLocal);
+                    //var isInDict = emiter.DefineLabel("isInDict" + property.Name);
+                    //var isNotInDict = emiter.DefineLabel("isNotInDict" + property.Name);
+                    var tryCatchDone = emiter.DefineLabel("tryCatchDone" + property.Name);
+                    var localData = emiter.DeclareLocal(property.Type(), "localData" + property.Name);
+
+                    //emiter.LoadArgument(0);
+                    //emiter.LoadArgument(2);
+                    //emiter.LoadConstant(property.Name);
+                    //emiter.Call(StringConcat2);
+                    //emiter.StoreLocal(localString);
+
+                    //emiter.LoadLocal(localString);
+                    //emiter.Call(DictionaryContains_String_Object);
+                    //emiter.BranchIfFalse(isNotInDict);
+
+                    var exceptionBlock = emiter.BeginExceptionBlock();
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
                     emiter.Call(StringConcat2);
-                    emiter.StoreLocal(localString);
-                    emiter.LoadLocal(localString);
-                    emiter.Call(DictionaryContains_String_Object);
-                    emiter.BranchIfFalse(isNotInDict);
-
-                    emiter.LoadArgument(0);
-                    emiter.LoadLocal(localString);
                     emiter.CallVirtual(DictionaryGet_String_Object);
                     emiter.LoadConstant(property.Type());
                     emiter.Call(GetTypeFromhandle);
@@ -220,6 +536,21 @@ namespace Nested
                     else
                         emiter.CastClass(property.Type());
 
+                    emiter.StoreLocal(localData);
+                    emiter.Leave(tryCatchDone);
+                    var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
+                    emiter.LoadLocalAddress(localData);
+                    emiter.InitializeObject(property.Type());
+                    emiter.Leave(tryCatchDone);
+                    emiter.EndCatchBlock(catchBlock);
+                    emiter.EndExceptionBlock(exceptionBlock);
+
+                    emiter.MarkLabel(tryCatchDone);
+                    emiter.LoadLocal(newObjectLocal);
+                    emiter.LoadLocal(localData);
+
+
+
                     PropertyInfo pi = property as PropertyInfo;
                     if (pi != null)
                         emiter.Call(pi.SetMethod);
@@ -228,17 +559,18 @@ namespace Nested
                         FieldInfo fi = property as FieldInfo;
                         emiter.StoreField(fi);
                     }
-                    emiter.Branch(isInDict);
 
-                    emiter.MarkLabel(isNotInDict);
-                    emiter.Pop();
+                    //emiter.Branch(isInDict);
 
-                    emiter.MarkLabel(isInDict);
+                    //emiter.MarkLabel(isNotInDict);
+                    //emiter.Pop();
+
+                    //emiter.MarkLabel(isInDict);
 
                 }
 
-                var nullableProperties = type.GetProperties().Where(t => t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>));
-                var nullableFields = type.GetFields().Where(t => t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>));
+                var nullableProperties = type.MappedProperties().Where(t => t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>));
+                var nullableFields = type.MappedFields().Where(t => t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>));
 
                 foreach (var property in nullableProperties.Cast<MemberInfo>().Concat(nullableFields.Cast<MemberInfo>()))
                 {
@@ -247,12 +579,13 @@ namespace Nested
                     var nullableNullConstructor = property.Type().GetConstructor(new Type[] { });
                     var isNull = emiter.DefineLabel("IsNull" + property.Name);
                     var isNotNull = emiter.DefineLabel("IsNotNull" + property.Name);
+                    var tryCatchDone = emiter.DefineLabel("tryCatchDone" + property.Name);
 
                     var nullableLocal = emiter.DeclareLocal(property.Type(), "NullableLocal" + property.Name);
                     emiter.LoadLocalAddress(nullableLocal);
                     emiter.InitializeObject(property.Type());
 
-
+                    var exceptionBlock = emiter.BeginExceptionBlock();
                     emiter.LoadArgument(0);
                     emiter.LoadArgument(2);
                     emiter.LoadConstant(property.Name);
@@ -261,6 +594,8 @@ namespace Nested
                     emiter.LoadLocal(localString);
                     emiter.Call(DictionaryContains_String_Object);
                     emiter.BranchIfFalse(isNotNull);
+
+
 
                     emiter.LoadArgument(0);
                     emiter.LoadLocal(localString);
@@ -284,8 +619,14 @@ namespace Nested
                     emiter.MarkLabel(isNull);
                     emiter.Pop();
 
-
                     emiter.MarkLabel(isNotNull);
+                    emiter.Leave(tryCatchDone);
+                    var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
+                    emiter.Leave(tryCatchDone);
+                    emiter.EndCatchBlock(catchBlock);
+                    emiter.EndExceptionBlock(exceptionBlock);
+
+                    emiter.MarkLabel(tryCatchDone);
                     emiter.LoadLocal(newObjectLocal);
                     emiter.LoadLocal(nullableLocal);
 
@@ -300,14 +641,14 @@ namespace Nested
 
                 }
 
-                var nonliteralProperties = type.GetProperties().Where(t =>
+                var nonliteralProperties = type.MappedProperties().Where(t =>
                     !(
                         t.PropertyType.IsPrimitive
                         || t.PropertyType == typeof(string)
                         || t.PropertyType == typeof(Guid)
                         || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                     ));
-                var nonliteralFields = type.GetFields().Where(t =>
+                var nonliteralFields = type.MappedFields().Where(t =>
                     !(
                         t.FieldType.IsPrimitive
                         || t.FieldType == typeof(string)
@@ -592,5 +933,16 @@ namespace Nested
                 return fi.FieldType;
             }
         }
+
+        internal static IEnumerable<PropertyInfo> MappedProperties(this Type type)
+        {
+            return type.GetProperties().Where(t => !t.GetCustomAttributes(typeof(NotMappedAttribute), false).Any());
+        }
+
+        internal static IEnumerable<FieldInfo> MappedFields(this Type type)
+        {
+            return type.GetFields().Where(t => !t.GetCustomAttributes(typeof(NotMappedAttribute), false).Any());
+        }
+        
     }
 }
