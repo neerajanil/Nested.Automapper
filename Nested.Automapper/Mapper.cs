@@ -16,12 +16,10 @@ namespace Nested
         
         private static Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>> _keyGenerators = new Dictionary<string, Emit<Func<IDictionary<string, object>, string, object>>>();
         private static Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>> _rowMappers = new Dictionary<string, Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>>();
-        //private static Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> _rowMapperDelegates = new Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>();
-        //private static Dictionary<string, Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>> _mappers = new Dictionary<string, Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>>();
-        //private static Dictionary<string, Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> _mapperDelegates = new Dictionary<string, Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>();
+        private static Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>> _rowMapperDelegates = new Dictionary<string, Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>();
         private static Dictionary<string, object> _mappers = new Dictionary<string, object>();
         private static Dictionary<string, object> _mapperDelegates = new Dictionary<string, object>();
-
+        
 
         static MethodInfo StringConcat2 = typeof(string).GetMethod("Concat", new Type[2] { typeof(string), typeof(string) });
         static MethodInfo ChangeType = typeof(System.Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
@@ -36,8 +34,11 @@ namespace Nested
         static MethodInfo DictionaryAdd_Object_Object = typeof(IDictionary<object, object>).GetMethod("Add");
         static ConstructorInfo DictionaryConstructor_Object_Object = typeof(Dictionary<object, object>).GetConstructor(new Type[] { });
 
-        static MethodInfo IEnumerable_GetEnumerator = typeof(IEnumerable<IDictionary<string, object>>).GetMethod("GetEnumerator", new Type[] { });
-        static MethodInfo IEnumerator_GetCurrent = typeof(IEnumerator<IDictionary<string, object>>).GetMethod("get_Current", new Type[] { });
+        
+
+        static MethodInfo IEnumerable_Object_GetEnumerator = typeof(IEnumerable<object>).GetMethod("GetEnumerator", new Type[] { });
+        static MethodInfo IEnumerator_Object_GetCurrent = typeof(IEnumerator<object>).GetMethod("get_Current", new Type[] { });
+
         static MethodInfo IEnumerator_MoveNext = typeof(System.Collections.IEnumerator).GetMethod("MoveNext", new Type[] { });
         static MethodInfo IEnumerator_Dispose = typeof(IDisposable).GetMethod("Dispose", new Type[] { });
 
@@ -445,20 +446,20 @@ namespace Nested
                 emiter.Return();
 
                 _rowMappers.Add(type.FullName, emiter);
-                emiter.CreateDelegate();
-                //_rowMapperDelegates.Add(type.FullName, emiter.CreateDelegate());
+                //emiter.CreateDelegate();
+                _rowMapperDelegates.Add(type.FullName, emiter.CreateDelegate());
                 emit = emiter;
             }
             return emit;
         }
 
-        public static Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> GenerateMapper<T>()
+        public static Emit<Func<IEnumerable<object>, IEnumerable<T>>> GenerateMapper<T>()
         {
             Type type = typeof(T);
-            Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> emit = null;
+            Emit<Func<IEnumerable<object>, IEnumerable<T>>> emit = null;
             if (_mappers.ContainsKey(type.FullName))
             {
-                emit = (Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>)_mappers[type.FullName];
+                emit = (Emit<Func<IEnumerable<object>, IEnumerable<T>>>)_mappers[type.FullName];
             }
             else
             {
@@ -466,10 +467,10 @@ namespace Nested
                 ConstructorInfo listConstructor = typeof(List<T>).GetConstructor(new Type[] { });
                 MethodInfo listAdd = typeof(List<T>).GetMethod("Add", new Type[] { typeof(T) });
 
-                Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>> emiter = Emit<Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>>.NewDynamicMethod(type.Name + "Mapper");
+                Emit<Func<IEnumerable<object>, IEnumerable<T>>> emiter = Emit<Func<IEnumerable<object>, IEnumerable<T>>>.NewDynamicMethod(type.Name + "Mapper");
 
 
-                var enumeratorLocal = emiter.DeclareLocal<IEnumerator<IDictionary<string, object>>>("enumerator");
+                var enumeratorLocal = emiter.DeclareLocal<IEnumerator<object>>("enumerator");
                 var listLocal = emiter.DeclareLocal<List<T>>("list");
                 var dumpLocal = emiter.DeclareLocal<IDictionary<object, object>>("dump");
 
@@ -487,7 +488,7 @@ namespace Nested
                 emiter.StoreLocal(dumpLocal);
 
                 emiter.LoadArgument(0);
-                emiter.CallVirtual(IEnumerable_GetEnumerator);
+                emiter.CallVirtual(IEnumerable_Object_GetEnumerator);
                 emiter.StoreLocal(enumeratorLocal);
 
                 //try {
@@ -498,8 +499,8 @@ namespace Nested
 
                 emiter.LoadLocal(listLocal);
                 emiter.LoadLocal(enumeratorLocal);
-                emiter.CallVirtual(IEnumerator_GetCurrent);
-
+                emiter.CallVirtual(IEnumerator_Object_GetCurrent);
+                emiter.CastClass<IDictionary<string, object>>();
                 emiter.LoadLocal(dumpLocal);
                 emiter.LoadConstant("");
                 emiter.Call(GenerateRowMapper(type)); // var rowResult = rowMapper ( row, dump, depthString = "" );
@@ -546,18 +547,17 @@ namespace Nested
             return emit;
         }
 
-        public static Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>> GetMapperDelegate<T>()
+        public static Func<IEnumerable<object>, IEnumerable<T>> GetMapperDelegate<T>()
         {
             Type t = typeof(T);
             if (!_mapperDelegates.ContainsKey(t.FullName))
             {
                 GenerateMapper<T>();
             }
-            return (Func<IEnumerable<IDictionary<string, object>>, IEnumerable<T>>)_mapperDelegates[t.FullName];
+            return (Func<IEnumerable<object>, IEnumerable<T>>)_mapperDelegates[t.FullName];
         }
 
     }
-
 
     public static class Automapper
     {
@@ -568,27 +568,18 @@ namespace Nested
         {
             return FunctionGenerator.GetMapperDelegate<T>()(source);
         }
-        //public static IEnumerable<T> Map<T>(IEnumerable<object> source)
-        //{
-        //    Func<IDictionary<string, object>, IDictionary<object, object>, string, object> mapper = null;
-        //    if (!_rowMapperDelegates.TryGetValue(typeof(T).FullName, out mapper))
-        //        mapper = GenerateRowMapper(typeof(T)).CreateDelegate();
 
-        //    var dump = new Dictionary<object, object>();
-        //    var result = new List<T>();
-        //    foreach (var row in source)
-        //    {
-        //        var m = mapper(row as IDictionary<string, object>, dump, "");
-        //        if (m != null)
-        //            result.Add((T)m);
-        //    }
 
-        //    return result;
-        //}
+        public static IEnumerable<T> Map<T>(IEnumerable<object> source)
+        {
+            return FunctionGenerator.GetMapperDelegate<T>()(source);
+        }
+
     }
-    public static class MappingHelper
+
+    internal static class MappingHelper
     {
-        public static Type Type(this MemberInfo mi)
+        internal static Type Type(this MemberInfo mi)
         {
             PropertyInfo pi = mi as PropertyInfo;
             if (pi != null)
