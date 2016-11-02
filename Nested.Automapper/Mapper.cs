@@ -62,13 +62,15 @@ namespace Nested
                 //verify primitivity
                 if (keys.Count() == 0)
                 {
+                    //if atleast one primitive property is not null then return a unique Tuple key
                     var notNullLabel = emiter.DefineLabel("NotNull");
                     var allPrimitiveProperties = type.MappedProperties().Where(t => t.PropertyType.IsPrimitive || t.PropertyType == typeof(string) || t.PropertyType == typeof(Guid) || (t.PropertyType.IsGenericType == true && t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)));
                     var allPrimitiveFields = type.MappedFields().Where(t => t.FieldType.IsPrimitive || t.FieldType == typeof(string) || t.FieldType == typeof(Guid) || (t.FieldType.IsGenericType == true && t.FieldType.GetGenericTypeDefinition() == typeof(Nullable<>)));
+                    
                     foreach (var property in allPrimitiveProperties.Cast<MemberInfo>().Concat(allPrimitiveFields.Cast<MemberInfo>()))
                     {
                         var tryCatchDone = emiter.DefineLabel("tryCatchDone" + property.Name);
-                        var exceptionBlock = emiter.BeginExceptionBlock();
+                        var exceptionBlock = emiter.BeginExceptionBlock();// try {
                         emiter.LoadArgument(0); //data
                         emiter.LoadArgument(1);// depthString
                         emiter.LoadConstant(property.Name); //propertyName
@@ -79,23 +81,23 @@ namespace Nested
                         emiter.BranchIfTrue(tryCatchDone); //if(data[dataKey] != null) goto notNullLabel
 
                         emiter.Leave(notNullLabel);
-                        emiter.MarkLabel(tryCatchDone);
-                        var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
-                        emiter.Pop();
+                        emiter.MarkLabel(tryCatchDone); // } --end try
+                        var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock); // catch(KeynNotFoundException) { -- the column was not found in datarow , continue as if column value was null
+                        emiter.Pop(); // remove exception forom stack
                         emiter.EndCatchBlock(catchBlock);
-                        emiter.EndExceptionBlock(exceptionBlock);
+                        emiter.EndExceptionBlock(exceptionBlock); // } --end catch
                     }
 
-                    emiter.LoadNull();
-                    emiter.Return();
+                    emiter.LoadNull(); // --code reaches this point if all the primitive properties where null , so return null
+                    emiter.Return(); // return null;
 
-                    emiter.MarkLabel(notNullLabel);
-                    var constructor = typeof(Tuple<string, object>).GetConstructor(new Type[2] { typeof(string), typeof(object) });
-                    emiter.LoadArgument(1);
+                    emiter.MarkLabel(notNullLabel); //notNullLabel : 
+                    var constructor = typeof(Tuple<string, object>).GetConstructor(new Type[2] { typeof(string), typeof(object) }); // create a key comprising of the depthstring and a guid , if an object has no key then all rows are considered unique
+                    emiter.LoadArgument(1); 
                     var newGuidMethod = typeof(Guid).GetMethod("NewGuid");
                     emiter.Call(newGuidMethod);
-                    emiter.Box(typeof(Guid));
-                    emiter.NewObject(constructor);
+                    emiter.Box(typeof(Guid)); // var guid = (object)Guid.NewGuid();
+                    emiter.NewObject(constructor); // return new Tuple<string,object>(depthstring,guid);
                     emiter.Return();
                     emiter.CreateDelegate();
                     _keyGenerators.Add(type.FullName, emiter);
@@ -103,13 +105,28 @@ namespace Nested
                 }
                 else
                 {
+                    //if keys are present create a Tuple made of depthstring and the value of each column marked as key
                     var constructor = GetTupleConstructor(keys.Count());
                     
                     var isNotNullLabel = emiter.DefineLabel("isNotNull");
                     var tryCatchDoneLabel = emiter.DefineLabel("tryCatchDone");
-                    var localKey = emiter.DeclareLocal<object>("key");
-                    var exceptionBlock = emiter.BeginExceptionBlock();
+                    var localCompositeKey = emiter.DeclareLocal<object>("compositeKey");
                     var isNullLabels = new List<Sigil.Label>();
+                    /* var compositeKey = null;
+                     * try{
+                     *  var key1 = data[key1Name];
+                     *  var key2 = data[key1Name];
+                     *  .
+                     *  .
+                     *  var key6 = data[key1Name];
+                     *  compositeKey = new Tuple<string,object,object,...>(depthString, key1, key2...);
+                     * }
+                     * catch(KeyNotFoundException){
+                     *  compositeKey = null;
+                     * }
+                     * return compositeKey;
+                     */
+                    var exceptionBlock = emiter.BeginExceptionBlock();
                     emiter.LoadArgument(1);
                     foreach (var property in keys.OrderBy(t => t.Name))
                     {
@@ -126,7 +143,7 @@ namespace Nested
                     }
 
                     emiter.NewObject(constructor);
-                    emiter.StoreLocal(localKey);
+                    emiter.StoreLocal(localCompositeKey);
                     emiter.Leave(tryCatchDoneLabel);
 
                     isNullLabels.Reverse();
@@ -137,17 +154,17 @@ namespace Nested
                     }
                     emiter.Pop();
                     emiter.LoadNull();
-                    emiter.StoreLocal(localKey);
+                    emiter.StoreLocal(localCompositeKey);
 
                     var catchBlock = emiter.BeginCatchBlock<KeyNotFoundException>(exceptionBlock);
                     emiter.LoadNull();
-                    emiter.StoreLocal(localKey);
+                    emiter.StoreLocal(localCompositeKey);
                     emiter.Pop();
                     emiter.EndCatchBlock(catchBlock);
                     emiter.EndExceptionBlock(exceptionBlock);
 
                     emiter.MarkLabel(tryCatchDoneLabel);
-                    emiter.LoadLocal(localKey);
+                    emiter.LoadLocal(localCompositeKey);
                     emiter.Return(); // return new Tuple<string,object,object,..>(depthString,data[],data[],..)
 
                     emiter.CreateDelegate();
@@ -184,7 +201,7 @@ namespace Nested
             else
             {
 
-                //                     source                      dump                     
+                //                     source                      cache                     
                 var emiter = Emit<Func<IDictionary<string, object>, IDictionary<object, object>, string, object>>.NewDynamicMethod(type.Name + "RowMapper");
                 var keyGenerator = GenerateKeyGenerator(type);
                 var isNotNew = emiter.DefineLabel("isNotNew");
@@ -203,9 +220,9 @@ namespace Nested
                 emiter.LoadNull(); //load null
                 emiter.BranchIfEqual(keyIsNull); //if key == null goto keyIsNull
 
-                emiter.LoadArgument(1);//load dump
+                emiter.LoadArgument(1);//load cache
                 emiter.LoadLocal(keyLocal); //load key
-                emiter.Call(DictionaryContains_Object_Object);// dump.Contains(key);
+                emiter.Call(DictionaryContains_Object_Object);// cache.Contains(key);
 
                 emiter.BranchIfFalse(isNew);
                 emiter.Branch(isNotNew);
@@ -214,7 +231,7 @@ namespace Nested
                 emiter.NewObject(type.GetConstructor(new Type[] { }));
 
                 emiter.StoreLocal(newObjectLocal);
-                emiter.LoadArgument(1);//load dump
+                emiter.LoadArgument(1);//load cache
                 emiter.LoadLocal(keyLocal);
                 emiter.LoadLocal(newObjectLocal);
                 emiter.CallVirtual(DictionaryAdd_Object_Object);
@@ -398,11 +415,11 @@ namespace Nested
 
                     emiter.LoadLocal(listTypeLocal); //List<T> listTypeLocal = new List<T>();
                     emiter.LoadArgument(0); //data
-                    emiter.LoadArgument(1); //dump
+                    emiter.LoadArgument(1); //cache
                     emiter.LoadArgument(2); //depthstring
                     emiter.LoadConstant(property.Name + ".");
                     emiter.Call(StringConcat2);  //fullkey = depthstring + property.Name
-                    emiter.Call(GenerateRowMapper(innerType)); //var localObject = mapper(data,dump,fullkey)
+                    emiter.Call(GenerateRowMapper(innerType)); //var localObject = mapper(data,cache,fullkey)
                     emiter.Duplicate();
                     emiter.LoadNull();
                     emiter.BranchIfEqual(alreadyCreated);
@@ -512,7 +529,7 @@ namespace Nested
 
                 var enumeratorLocal = emiter.DeclareLocal<IEnumerator<object>>("enumerator");
                 var listLocal = emiter.DeclareLocal<List<T>>("list");
-                var dumpLocal = emiter.DeclareLocal<IDictionary<object, object>>("dump");
+                var cacheLocal = emiter.DeclareLocal<IDictionary<object, object>>("cache");
 
 
                 var loopFinishedLabel = emiter.DefineLabel("loopFinished");
@@ -525,7 +542,7 @@ namespace Nested
                 emiter.NewObject(listConstructor);
                 emiter.StoreLocal(listLocal);
                 emiter.NewObject(DictionaryConstructor_Object_Object);
-                emiter.StoreLocal(dumpLocal);
+                emiter.StoreLocal(cacheLocal);
 
                 emiter.LoadArgument(0);
                 emiter.CallVirtual(IEnumerable_Object_GetEnumerator);
@@ -541,9 +558,9 @@ namespace Nested
                 emiter.LoadLocal(enumeratorLocal);
                 emiter.CallVirtual(IEnumerator_Object_GetCurrent);
                 emiter.CastClass<IDictionary<string, object>>();
-                emiter.LoadLocal(dumpLocal);
+                emiter.LoadLocal(cacheLocal);
                 emiter.LoadConstant("");
-                emiter.Call(GenerateRowMapper(type)); // var rowResult = rowMapper ( row, dump, depthString = "" );
+                emiter.Call(GenerateRowMapper(type)); // var rowResult = rowMapper ( row, cache, depthString = "" );
                 emiter.Duplicate();
                 emiter.LoadNull();
                 emiter.BranchIfEqual(isNullLabel);
