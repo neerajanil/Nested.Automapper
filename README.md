@@ -1,4 +1,4 @@
-# Nested.Automapper 
+﻿# Nested.Automapper 
 
 Nested.Automapper is a library that converts a flat List of Dictionary<string,object> objects or a List of loosely typed dynamic objects into a list of nested strongly typed objects for microORM's like dapper.
 
@@ -117,7 +117,7 @@ public void static NestedMappingExample()
 ####Points to Note
 
  1.  [Key] attribute used to mark primary key columns, you can find this in System.ComponentModel.DataAnnotations.dll and should be applied to all the primary key columns
- 2. An alias has been provided for each of the nested columns which indicates the property within which data must be populated. eg:- [Vehicles.VehicleId] lets Nested.Automapper know that the VehicleId property within the Vehicles Propery of Person should be populated from this column
+ 2. An alias has been provided for each of the nested columns which indicates the property within which data must be populated. eg:- [Vehicles.VehicleId] lets Nested.Automapper know that the VehicleId property within the Vehicles propetry of Person should be populated from this column
 
 
 ##Performance Benchmarks
